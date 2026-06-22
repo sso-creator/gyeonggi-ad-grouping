@@ -108,9 +108,9 @@
   .note{margin-top:9px;font-size:11.5px;color:var(--short);background:var(--short-soft);border:1px solid #f2b33d35;border-radius:6px;padding:7px 10px;line-height:1.5;}
 
   /* map */
-  .map-panel{position:relative;min-height:520px;display:flex;flex-direction:column;}
-  .map-wrap{position:relative;flex:1;}
-  svg#map{width:100%;height:100%;display:block;}
+  .map-panel{position:relative;display:flex;flex-direction:column;}
+  .map-wrap{position:relative;flex:1;min-height:520px;}
+  svg#map{width:100%;height:100%;min-height:520px;display:block;}
   .district{fill:var(--map-idle);stroke:var(--map-idle-stroke);stroke-width:0.8;transition:fill .3s,stroke .3s,opacity .3s;cursor:pointer;}
   .district.dim{fill:var(--map-dim);stroke:var(--map-dim-stroke);}
   .district.hl{stroke-width:1.4;}
@@ -155,7 +155,8 @@
               <button class="rgn-btn" data-region="서울" type="button">서울</button>
               <button class="rgn-btn" data-region="경기" type="button">경기</button>
             </div>
-            <button class="toggle-all" id="toggleAll" type="button">전체 보기</button>
+            <button class="toggle-all" id="toggleSeoul" type="button">서울 그룹별</button>
+            <button class="toggle-all" id="toggleGyeonggi" type="button">경기 그룹별</button>
           </div>
         </div>
         <div class="group-list" id="groupList"></div>
@@ -166,7 +167,10 @@
     <div class="panel map-panel">
       <div class="panel-head">
         <div class="title">행정구역 지도</div>
-        <div style="font-size:11px;color:var(--text-muted);">행정구역 클릭시 해당 그룹으로 이동</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <button class="toggle-all" id="zoomSeoul" type="button">🔍 서울 확대</button>
+          <div style="font-size:11px;color:var(--text-muted);">행정구역 클릭시 해당 그룹으로 이동</div>
+        </div>
       </div>
       <div class="map-wrap" id="mapWrap">
         <svg id="map" viewBox="0 0 760 680" preserveAspectRatio="xMidYMid meet"></svg>
@@ -224,7 +228,7 @@ const GROUPS  = [{"id":"GS1","label":"강남구 단독","region":"서울","membe
     .on('mouseleave', onLeave)
     .on('click', (ev,d) => {
       const g = nameToGroup[d.properties.name];
-      if(g){ isAllMode=false; updateToggleUI(false); selectGroup(g.id); }
+      if(g){ allModeRegion=null; updateToggleUI(); selectGroup(g.id); }
     });
 
   const bboxRect = ticksLayer.append('rect').attr('class','bbox-rect');
@@ -249,7 +253,7 @@ const GROUPS  = [{"id":"GS1","label":"강남구 단독","region":"서울","membe
       activeRegion=btn.dataset.region;
       document.querySelectorAll('.rgn-btn').forEach(b=>b.classList.toggle('active',b.dataset.region===activeRegion));
       renderGroupList();
-      clearHighlight(); isAllMode=false; updateToggleUI(false);
+      clearHighlight(); allModeRegion=null; updateToggleUI();
       const first=GROUPS.find(g=>activeRegion==='all'||g.region===activeRegion);
       if(first) selectGroup(first.id);
     });
@@ -266,7 +270,7 @@ const GROUPS  = [{"id":"GS1","label":"강남구 단독","region":"서울","membe
         <span class="gid">${g.id}</span>
         <span class="glabel">${g.label}${rgn}</span>
         <span class="gmeta"><span class="gamount">${fmtShort(g.total)}</span><span class="gdot ${g.status}"></span></span>`;
-      btn.addEventListener('click',()=>{ isAllMode=false; updateToggleUI(false); selectGroup(g.id); });
+      btn.addEventListener('click',()=>{ allModeRegion=null; updateToggleUI(); selectGroup(g.id); });
       groupListEl.appendChild(btn);
     });
   }
@@ -292,7 +296,7 @@ const GROUPS  = [{"id":"GS1","label":"강남구 단독","region":"서울","membe
       </div>${note}`;
   }
 
-  let isAllMode=false, currentGid=null;
+  let currentGid=null;
   function selectGroup(gid){
     currentGid=gid;
     const g=GROUPS.find(x=>x.id===gid);
@@ -330,24 +334,75 @@ const GROUPS  = [{"id":"GS1","label":"강남구 단독","region":"서울","membe
     ticksLayer.selectAll('path.tick').classed('show',false);
   }
 
-  const toggleBtn=document.getElementById('toggleAll');
-  function updateToggleUI(on){
-    isAllMode=on;
-    toggleBtn.classList.toggle('active',on);
-    toggleBtn.textContent=on?'그룹별 선택':'전체 보기';
+  let allModeRegion=null; // null | '서울' | '경기'
+
+  function showAllByRegion(region){
+    allModeRegion = region;
+    bboxRect.classed('show',false);
+    ticksLayer.selectAll('path.tick').classed('show',false);
+    paths
+      .classed('dim',false).classed('hl',false)
+      .style('fill', d=>{
+        const g=nameToGroup[d.properties.name];
+        if(!region || g.region===region) return groupColor[g.id];
+        return null; // idle color via CSS
+      })
+      .style('stroke', d=>{
+        const g=nameToGroup[d.properties.name];
+        if(!region || g.region===region) return '#0B161E';
+        return null;
+      })
+      .style('opacity', d=>{
+        const g=nameToGroup[d.properties.name];
+        if(!region || g.region===region) return 0.88;
+        return 0.25;
+      });
+    document.querySelectorAll('.group-item').forEach(el=>el.classList.remove('active'));
+    document.getElementById('toggleSeoul').classList.toggle('active', region==='서울');
+    document.getElementById('toggleGyeonggi').classList.toggle('active', region==='경기');
   }
-  toggleBtn.addEventListener('click',()=>{
-    isAllMode=!isAllMode; updateToggleUI(isAllMode);
-    if(isAllMode){
-      bboxRect.classed('show',false);
-      ticksLayer.selectAll('path.tick').classed('show',false);
-      paths.classed('dim',false).classed('hl',false)
-        .style('fill',d=>groupColor[nameToGroup[d.properties.name].id])
-        .style('stroke','#0B161E').style('opacity',0.88);
-      document.querySelectorAll('.group-item').forEach(el=>el.classList.remove('active'));
+
+  function updateToggleUI(){ allModeRegion=null; document.getElementById('toggleSeoul').classList.remove('active'); document.getElementById('toggleGyeonggi').classList.remove('active'); }
+
+  document.getElementById('toggleSeoul').addEventListener('click',()=>{
+    if(allModeRegion==='서울'){ allModeRegion=null; updateToggleUI(); clearHighlight(); if(currentGid) selectGroup(currentGid); }
+    else showAllByRegion('서울');
+  });
+  document.getElementById('toggleGyeonggi').addEventListener('click',()=>{
+    if(allModeRegion==='경기'){ allModeRegion=null; updateToggleUI(); clearHighlight(); if(currentGid) selectGroup(currentGid); }
+    else showAllByRegion('경기');
+  });
+  // Seoul zoom
+  let seoulZoomed=false;
+  const zoomBtn=document.getElementById('zoomSeoul');
+  function getSeoulBBox(){
+    let x1=1e9,y1=1e9,x2=-1e9,y2=-1e9;
+    paths.each(function(d){
+      if(d.properties.region==='서울'){
+        const b=this.getBBox();
+        x1=Math.min(x1,b.x);y1=Math.min(y1,b.y);
+        x2=Math.max(x2,b.x+b.width);y2=Math.max(y2,b.y+b.height);
+      }
+    });
+    return {x:x1,y:y1,w:x2-x1,h:y2-y1};
+  }
+  zoomBtn.addEventListener('click',()=>{
+    seoulZoomed=!seoulZoomed;
+    zoomBtn.classList.toggle('active',seoulZoomed);
+    zoomBtn.textContent=seoulZoomed?'🗺 전체 보기':'🔍 서울 확대';
+    const VW=760,VH=680,PAD=30;
+    if(seoulZoomed){
+      const b=getSeoulBBox();
+      const sc=Math.min((VW-PAD*2)/b.w,(VH-PAD*2)/b.h);
+      const tx=PAD-b.x*sc+((VW-PAD*2)-b.w*sc)/2;
+      const ty=PAD-b.y*sc+((VH-PAD*2)-b.h*sc)/2;
+      mapG.transition().duration(600).ease(d3.easeCubicInOut)
+        .attr('transform',`translate(${tx},${ty}) scale(${sc})`);
+      paths.transition().duration(600).style('stroke-width',0.8/sc);
     } else {
-      clearHighlight();
-      if(currentGid) selectGroup(currentGid);
+      mapG.transition().duration(500).ease(d3.easeCubicInOut)
+        .attr('transform','translate(0,0) scale(1)');
+      paths.transition().duration(500).style('stroke-width',null);
     }
   });
 
