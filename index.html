@@ -249,7 +249,7 @@ const GROUPS  = [{"id":"S1","label":"강남구 단독","region":"서울","member
     tooltip.style.left=(ev.clientX-r.left)+'px';
     tooltip.style.top=(ev.clientY-r.top)+'px';
     const m = g.members.find(x=>x.name===nm);
-    tooltip.innerHTML=`<b>${nm}</b><br><span class="ttmeta">${g.id} · ${fmt(m?m.amount:0)}</span>`;
+    tooltip.innerHTML=`<b>${nm}</b><br><span class="ttmeta">${g.id} · ${g.label}</span>`;
     tooltip.classList.add('show');
   }
   function onLeave(){ tooltip.classList.remove('show'); }
@@ -284,11 +284,8 @@ const GROUPS  = [{"id":"S1","label":"강남구 단독","region":"서울","member
 
   const detailPanel=document.getElementById('detailPanel');
   function renderDetail(g){
-    const chips=g.members.map(m=>`<span class="chip ${m.overlap?'overlap':''}">${m.name} <b>${fmtShort(m.amount)}</b>${m.overlap?'<span class="otag">중복</span>':''}</span>`).join('');
-    const statusRow=g.status==='ok'
-      ?`<div class="row ok"><span>목표(300만) 대비</span><span class="v">달성 ✓</span></div>`
-      :`<div class="row short"><span>목표(300만) 대비</span><span class="v">▲${fmtShort(Math.abs(g.diff))} 미달</span></div>`;
-    const note=g.status==='short'?`<div class="note">인접 지역 모두 묶어도 300만원 미달 — 앱종료팝업 결합 PKG 검토 권장</div>`:'';
+    const chips=g.members.map(m=>`<span class="chip ${m.overlap?'overlap':''}">${m.name}${m.overlap?'<span class="otag">중복</span>':''}</span>`).join('');
+
     detailPanel.innerHTML=`
       <div class="dh">
         <span class="id">${g.id}</span>
@@ -299,8 +296,7 @@ const GROUPS  = [{"id":"S1","label":"강남구 단독","region":"서울","member
       <div class="totals">
         <div class="row"><span>예산</span><span class="v total">${fmt(g.total)}</span></div>
         <div class="row"><span>보장노출량</span><span class="v" style="color:var(--ok);">250,000회</span></div>
-        ${statusRow}
-      </div>${note}`;
+      </div>`;
   }
 
   let currentGid=null;
